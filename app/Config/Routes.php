@@ -30,3 +30,7 @@ $routes->post('/surat/update-status/(:num)', 'AgendaController::updateStatus/$1'
 // Print Route
 $routes->get('/agenda/print', 'AgendaController::print');
 $routes->get('/surat/print', 'AgendaController::print');
+
+$routes->get('login', 'AuthController::login');
+$routes->post('login/process', 'AuthController::processLogin');
+$routes->get('logout', 'AuthController::logout');
