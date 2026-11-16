@@ -25,6 +25,7 @@ class Filters extends BaseFilters
      * or [filter_name => [classname1, classname2, ...]]
      */
     public array $aliases = [
+        'auth'          => \App\Filters\AuthFilter::class,
         'csrf'          => CSRF::class,
         'toolbar'       => DebugToolbar::class,
         'honeypot'      => Honeypot::class,
@@ -38,14 +39,6 @@ class Filters extends BaseFilters
 
     /**
      * List of special required filters.
-     *
-     * The filters listed here are special. They are applied before and after
-     * other kinds of filters, and always applied even if a route does not exist.
-     *
-     * Filters set by default provide framework functionality. If removed,
-     * those functions will no longer work.
-     *
-     * @see https://codeigniter.com/user_guide/incoming/filters.html#provided-filters
      *
      * @var array{before: list<string>, after: list<string>}
      */
@@ -86,13 +79,6 @@ class Filters extends BaseFilters
      * List of filter aliases that works on a
      * particular HTTP method (GET, POST, etc.).
      *
-     * Example:
-     * 'POST' => ['foo', 'bar']
-     *
-     * If you use this, you should disable auto-routing because auto-routing
-     * permits any HTTP method to access a controller. Accessing the controller
-     * with a method you don't expect could bypass the filter.
-     *
      * @var array<string, list<string>>
      */
     public array $methods = [];
@@ -101,10 +87,9 @@ class Filters extends BaseFilters
      * List of filter aliases that should run on any
      * before or after URI patterns.
      *
-     * Example:
-     * 'isLoggedIn' => ['before' => ['account/*', 'profiles/*']]
-     *
      * @var array<string, array<string, list<string>>>
      */
-    public array $filters = [];
+    public array $filters = [
+        'auth' => ['before' => ['agenda', 'agenda/*']],
+    ];
 }
