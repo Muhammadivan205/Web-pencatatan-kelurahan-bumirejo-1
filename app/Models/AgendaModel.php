@@ -21,6 +21,8 @@ class AgendaModel extends Model
         'kategori',
         'keterangan',
         'status',
+        'user_id',
+        'disetujui_oleh',
     ];
 
     // Dates

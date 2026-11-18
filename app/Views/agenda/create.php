@@ -106,7 +106,7 @@
         <div class="container">
             <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-3">
-                    <a href="<?= base_url('agenda') ?>" class="btn btn-outline-light btn-sm rounded-circle" style="width:40px; height:40px; display:flex; align-items:center; justify-content:center;" title="Kembali">
+                    <a href="<?= base_url(session()->get('role') === 'warga' ? 'riwayat' : 'agenda') ?>" class="btn btn-outline-light btn-sm rounded-circle" style="width:40px; height:40px; display:flex; align-items:center; justify-content:center;" title="Kembali">
                         <i class="fa-solid fa-arrow-left"></i>
                     </a>
                     <div style="width: 44px; height: 44px; background: #ffffff; border-radius: 12px; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); flex-shrink: 0;">
@@ -211,7 +211,7 @@
                                 <label class="form-label">3. Nama Pemohon / Warga <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-user text-info"></i></span>
-                                    <input type="text" name="nama" id="fieldNama" class="form-control border-start-0" placeholder="Tuliskan nama lengkap warga pemohon (misal: Budi Santoso)" required>
+                                    <input type="text" name="nama" id="fieldNama" class="form-control border-start-0" value="<?= esc(old('nama', session()->get('role') === 'warga' ? session()->get('nama') : '')) ?>" placeholder="Tuliskan nama lengkap warga pemohon" required <?= session()->get('role') === 'warga' ? 'readonly' : '' ?>>
                                 </div>
                             </div>
 
@@ -220,9 +220,10 @@
                                 <label class="form-label">Nomor KTP / NIK Pemohon <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-id-card text-success"></i></span>
-                                    <input type="text" name="instansi" id="fieldKtp" class="form-control border-start-0" placeholder="Masukkan 16 digit Nomor KTP / NIK warga" required minlength="5" maxlength="255">
+                                    <input type="text" name="instansi" id="fieldKtp" maxlength="16" class="form-control border-start-0" value="<?= esc(old('instansi', session()->get('role') === 'warga' ? session()->get('nik') : '')) ?>" placeholder="Masukkan 16 digit NIK warga Bumirejo" required minlength="16" <?= session()->get('role') === 'warga' ? 'readonly' : '' ?>>
                                 </div>
-                                <small class="text-muted" style="font-size: 0.78rem;">Wajib diisi sesuai identitas KTP pemohon (contoh: 330809xxxxxxxxxx).</small>
+                                <div id="nikValidationFeedback" class="mt-2" style="display: none;"></div>
+                                <small class="text-muted" style="font-size: 0.78rem;">Sistem otomatis memvalidasi apakah NIK terdaftar sebagai warga sah Kelurahan Bumirejo (awalan 330809).</small>
                             </div>
 
                             <!-- 4. ALAMAT -->
@@ -329,6 +330,64 @@
                     }
                 }
             });
+        }
+        // Validasi Otomatis Keaslian Warga Bumirejo via NIK
+        const fieldKtp = document.getElementById('fieldKtp');
+        const feedbackEl = document.getElementById('nikValidationFeedback');
+        const fieldNama = document.getElementById('fieldNama');
+        const fieldAlamat = document.getElementById('fieldAlamat');
+
+        if (fieldKtp) {
+            fieldKtp.addEventListener('input', function() {
+                const nik = this.value.trim().replace(/\D/g, '');
+                this.value = nik; // Pastikan hanya angka
+
+                if (nik.length === 16) {
+                    feedbackEl.style.display = 'block';
+                    feedbackEl.innerHTML = '<div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i> Memvalidasi data kependudukan Bumirejo...</div>';
+
+                    fetch('<?= base_url('api/cek-nik/') ?>' + nik)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.valid) {
+                                feedbackEl.innerHTML = `
+                                    <div class="alert alert-success py-2 px-3 rounded-3 small mb-0 d-flex align-items-center gap-2">
+                                        <i class="fa-solid fa-circle-check text-success fs-5"></i>
+                                        <div>
+                                            <strong class="d-block text-success">Warga Sah Kelurahan Bumirejo Terverifikasi!</strong>
+                                            <span>${data.data.nama} — RT ${data.data.rt} / RW ${data.data.rw}, Dusun ${data.data.dusun}</span>
+                                        </div>
+                                    </div>
+                                `;
+                                if (!fieldNama.value) fieldNama.value = data.data.nama;
+                                if (!fieldAlamat.value) fieldAlamat.value = `RT ${data.data.rt} / RW ${data.data.rw}, Dusun ${data.data.dusun}, Kel. Bumirejo`;
+                            } else {
+                                feedbackEl.innerHTML = `
+                                    <div class="alert alert-danger py-2 px-3 rounded-3 small mb-0 d-flex align-items-center gap-2">
+                                        <i class="fa-solid fa-triangle-exclamation text-danger fs-5"></i>
+                                        <div>
+                                            <strong class="d-block text-danger">PERMOHONAN AKAN DITOLAK:</strong>
+                                            <span>${data.alasan}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        })
+                        .catch(() => {
+                            feedbackEl.style.display = 'none';
+                        });
+                } else if (nik.length > 0 && nik.length < 16) {
+                    feedbackEl.style.display = 'block';
+                    feedbackEl.innerHTML = `<span class="text-muted small">Masukkan 16 digit NIK (${nik.length}/16 digit)</span>`;
+                } else {
+                    feedbackEl.style.display = 'none';
+                }
+            });
+
+            // Trigger otomatis jika sudah terisi (misal role warga)
+            if (fieldKtp.value.trim().length === 16) {
+                fieldKtp.dispatchEvent(new Event('input'));
+            }
         }
     </script>
 </body>

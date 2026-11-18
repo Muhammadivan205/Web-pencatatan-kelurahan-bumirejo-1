@@ -190,7 +190,7 @@
             <p class="mb-1">Bumirejo, <?= esc($print_date) ?></p>
             <p class="mb-5">Mengetahui,<br><strong>Lurah Bumirejo</strong></p>
             <br><br>
-            <p class="mb-0"><strong>H. DRS. BUDI SANTOSO, M.SI</strong></p>
+            <p class="mb-0"><strong>MUHAMMAD NUR</strong></p>
             <p class="mb-0">NIP. 19780512 200312 1 004</p>
         </div>
     </div>

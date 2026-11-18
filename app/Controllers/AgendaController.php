@@ -147,6 +147,15 @@ class AgendaController extends BaseController
 
         $nama = $this->request->getPost('nama');
         $kategori = $this->request->getPost('kategori') ?: 'Surat Keterangan Lainnya';
+        $nikPemohon = trim($this->request->getPost('instansi'));
+
+        // VALIDASI KEASLIAN WARGA BUMIREJO
+        $pendudukModel = new \App\Models\PendudukModel();
+        $cekWarga = $pendudukModel->validasiWargaBumirejo($nikPemohon);
+
+        if (!$cekWarga['valid']) {
+            return redirect()->back()->withInput()->with('error', $cekWarga['alasan']);
+        }
 
         $data = [
             'nomor_agenda' => $nomorAgenda,
@@ -157,13 +166,102 @@ class AgendaController extends BaseController
             'kategori'     => $kategori,
             'keterangan'   => $this->request->getPost('keterangan'),
             'status'       => $this->request->getPost('status') ?? 'Dalam Proses',
+            'user_id'      => (function() use ($nikPemohon) {
+                $userModel = new \App\Models\UserModel();
+                $u = $userModel->where('nik', $nikPemohon)->first();
+                return $u ? $u['id'] : session()->get('id');
+            })(),
         ];
 
         if (!$this->agendaModel->save($data)) {
             return redirect()->back()->withInput()->with('errors', $this->agendaModel->errors());
         }
 
+        if (session()->get('role') === 'warga') {
+            return redirect()->to('/riwayat')->with('success', 'Permohonan surat a.n. "' . esc($nama) . '" berhasil diajukan dan sedang diproses kelurahan!');
+        }
+
         return redirect()->to('/agenda')->with('success', 'Permohonan surat warga a.n. "' . esc($nama) . '" berhasil dicatat!');
+    }
+
+    /**
+     * RIWAYAT PERMOHONAN: Halaman Khusus Warga untuk memantau surat miliknya
+     */
+    public function riwayat()
+    {
+        $session = session();
+        $nik = $session->get('nik');
+        $userId = $session->get('id');
+        $role = $session->get('role');
+
+        $builder = $this->agendaModel->builder();
+
+        // Jika warga, filter hanya permohonan miliknya
+        if ($role === 'warga') {
+            $builder->groupStart()
+                    ->where('user_id', $userId)
+                    ->orWhere('instansi', $nik)
+                    ->groupEnd();
+        }
+
+        $daftarSurat = $builder->orderBy('tanggal', 'DESC')
+                               ->orderBy('id', 'DESC')
+                               ->get()
+                               ->getResultArray();
+
+        $total = count($daftarSurat);
+        $proses = 0;
+        $siapAmbil = 0;
+        $selesai = 0;
+
+        foreach ($daftarSurat as $s) {
+            $st = $s['status'] ?? '';
+            if ($st === 'Selesai') {
+                $selesai++;
+            } elseif ($st === 'Siap Diambil') {
+                $siapAmbil++;
+            } else {
+                $proses++;
+            }
+        }
+
+        $data = [
+            'title'       => 'Riwayat Permohonan Surat Saya - Kelurahan Bumirejo',
+            'daftarSurat' => $daftarSurat,
+            'stats'       => [
+                'total'     => $total,
+                'proses'    => $proses,
+                'siapAmbil' => $siapAmbil,
+                'selesai'   => $selesai,
+            ],
+        ];
+
+        return view('warga/riwayat', $data);
+    }
+
+    /**
+     * CETAK BUKTI PERMOHONAN / TANDA TERIMA UNTUK WARGA
+     */
+    public function cetakBukti($id)
+    {
+        $agenda = $this->agendaModel->find($id);
+        if (!$agenda) {
+            return redirect()->to('/riwayat')->with('error', 'Data tidak ditemukan.');
+        }
+
+        // Jika warga, pastikan hanya boleh cetak bukti miliknya
+        if (session()->get('role') === 'warga') {
+            if ($agenda['user_id'] != session()->get('id') && $agenda['instansi'] != session()->get('nik')) {
+                return redirect()->to('/riwayat')->with('error', 'Akses ditolak.');
+            }
+        }
+
+        $data = [
+            'title'  => 'Tanda Terima Permohonan Surat - ' . $agenda['nomor_agenda'],
+            'agenda' => $agenda,
+        ];
+
+        return view('warga/cetak_bukti', $data);
     }
 
     /**
